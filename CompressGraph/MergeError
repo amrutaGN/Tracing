@@ -1,3 +1,5 @@
+#Sparsifying nodes with low error occurrence. Removing nodes that have a total error count below a certain threshold.
+
 import subprocess
 from graphers import plotall
 import graphviz
