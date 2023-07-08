@@ -3,7 +3,8 @@ from graphers import plotall
 import graphviz
 from graph import *
 import logging
-
+import webbrowser
+import os
 
 def compute_metrics(traces,outputdir):
     # creating an empty dictionary to house the metrics
@@ -97,36 +98,72 @@ def helper(node:GraphNode,d,trace:Graph):
     for node in children:
         helper(node,d,trace)
 
+
 def generatehtml(data, outputdir):
+    # Create directory for subgraphs
+    subgraph_dir = f"{outputdir}/subgraphs"
+    os.makedirs(subgraph_dir, exist_ok=True)
+
     # Initialize Directed graph
     g = graphviz.Digraph('G', filename='tmp_gh.gv', format="svg", graph_attr={"rankdir": "LR"})
 
-    # Create super nodes
+    # Create super nodes and subgraphs
     super_nodes = {}
-    for k, v in data.items():
-        service_name = k[0]
-        if service_name not in super_nodes:
-            super_nodes[service_name] = g.subgraph(name=f"cluster_{service_name}")
-            with g.subgraph(name=f"cluster_{service_name}") as sub1:
-                sub1.attr(label = service_name)
-        if v[0] != 0:  # Contains errors
-            node_color = 'red'
-        else:
-            node_color = None
-        super_nodes[service_name].node(name=f"{k[0]}_{k[1]}", label=f"<<b>{k[1]}</b>>", fillcolor=node_color, style="filled", shape="box", href=f"#{k[0]}_{k[1]}")
-        
+    subgraphs = {}
+    for trace in data['data']:
+        spans = trace['spans']
+        processes = trace['processes']
+
+        for span in spans:
+            service_name = processes[span['processID']]['serviceName']
+            operation_name = span['operationName']
+            super_node_name = f"{service_name}_super"
+
+            if super_node_name not in super_nodes:
+                # Create a subgraph for the super node
+                subgraph = graphviz.Digraph(name=f"cluster_{super_node_name}")
+                subgraph.node_attr.update(style='filled', color='lightgrey')
+                super_nodes[super_node_name] = super_node_name
+                subgraphs[super_node_name] = subgraph
+                # Add the super node to the main graph
+                g.subgraph(subgraph)
+
+            # Add the operation node to the corresponding subgraph
+            if 'tags' in span:
+                tags = span['tags']
+                for tag in tags:
+                    if tag['key'] == 'error' and tag['value'] == 'true':
+                        node_color = 'red'
+                        break
+                else:
+                    node_color = None
+            else:
+                node_color = None
+
+            subgraphs[super_node_name].node(name=f"{super_node_name}_{operation_name}", label=operation_name, fillcolor=node_color, style="filled", shape="box", href=f"subgraphs/{super_node_name}.html")
+
     # Add edges between nodes
-    for k, v in data.items():
-        for n, val in v[4].items():
-            g.edge(f"{n[0]}{n[1]}", f"{k[0]}{k[1]}", weight=str(val), label=str(val))
+    for trace in data['data']:
+        spans = trace['spans']
+        for span in spans:
+            references = span['references']
+            for ref in references:
+                ref_trace_id = ref['traceID']
+                ref_span_id = ref['spanID']
+                ref_super_node_name = f"{super_nodes.get(ref_trace_id + '_super')}"
+                if ref_super_node_name:
+                    cur_super_node = f"{super_nodes.get(trace['traceID'] + '_super')}"
+                    if cur_super_node:
+                        g.edge(f"{cur_super_node}_{span['operationName']}", f"{ref_super_node_name}_{spans[0]['operationName']}")
 
     # Save in different formats
-    g.render(outfile=f"{outputdir}/tmp_gh.svg")
-    g.render(outfile=f"{outputdir}/tmp_gh.png")
-    g.render(outfile=f"{outputdir}/tmp_gh.pdf")
+    g.render(directory=outputdir, format="svg")
+    g.render(directory=outputdir, format="png")
+    g.render(directory=outputdir, format="pdf")
 
-
-
+    # Generate subgraph HTML files
+    for super_node_name, subgraph in subgraphs.items():
+        subgraph_html = f"{subgraph_dir}/{super_node_name}.html"
 
     html = """
     <!DOCTYPE html>
