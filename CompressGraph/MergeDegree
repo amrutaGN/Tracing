@@ -1,3 +1,5 @@
+#Degree-based Sparsification: Display only nodes that have a certain minimum degree (number of connections) in the graph. Nodes with a lower degree can be filtered out, reducing the visual clutter and focusing on the more connected nodes.
+
 import subprocess
 from graphers import plotall
 import graphviz
