@@ -1,3 +1,5 @@
+#Filtering based duration of node
+
 import subprocess
 from graphers import plotall
 import graphviz
