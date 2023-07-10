@@ -105,7 +105,7 @@ def generatehtml(data, outputdir):
     os.makedirs(subgraph_dir, exist_ok=True)
 
     # Initialize Directed graph
-    g = graphviz.Digraph('G', filename='tmp_gh.gv', format="svg", graph_attr={"rankdir": "LR"})
+    g = graphviz.Digraph('G', filename='tmp_gh.gv', format="svg")
 
     # Create super nodes and subgraphs
     super_nodes = {}
