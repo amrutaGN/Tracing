@@ -140,7 +140,10 @@ def generatehtml(data, outputdir):
             else:
                 node_color = None
 
-            subgraphs[super_node_name].node(name=f"{super_node_name}_{operation_name}", label=operation_name, fillcolor=node_color, style="filled", shape="box", href=f"subgraphs/{super_node_name}.html")
+            subgraph_node_name = f"{service_name}_{operation_name}"
+            subgraph_node_label = f"{service_name} - {operation_name}"
+            subgraphs[super_node_name].node(name=subgraph_node_name, label=subgraph_node_label, fillcolor=node_color, style="filled", shape="box", href=f"subgraphs/{super_node_name}.html")
+
 
     # Add edges between nodes
     for trace in data['data']:
