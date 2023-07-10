@@ -128,7 +128,7 @@ def generatehtml(data, outputdir):
                 # Add the super node to the main graph
                 g.subgraph(subgraph)
 
-            # Add the operation node to the corresponding subgraph
+            # Add the node to the corresponding subgraph
             if 'tags' in span:
                 tags = span['tags']
                 for tag in tags:
