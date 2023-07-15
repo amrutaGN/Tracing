@@ -145,10 +145,12 @@ def generatehtml(data, outputdir):
         sub_g.render(outfile=f"{outputdir}/subgraphs/{k}.svg")
         if has_error:
             node_color = 'red'
+        # Add each serviceName as a SuperNode to the main graph
         g.node(name=f"{k}",label=f"{k}",href = f"{subgraph_dir}/{k}.svg",color = node_color)
         
     for k,value in related_services.items():
         for ele in value:
+            # Add edges between nodes in the main graph
             g.edge(f"{ele}", f"{k}", weight=str(val), label=str(val))
        
     # Save in different formats
