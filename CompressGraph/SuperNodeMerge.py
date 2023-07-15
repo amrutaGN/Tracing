@@ -120,29 +120,36 @@ def generatehtml(data, outputdir):
                 nodes[k]=data[k]
         service_group[service]=nodes
 
-   
+    related_services = {}
     # Add each service, operation pair as a node to the subgraph
     for k,v in service_group.items():
         has_error = False   
-        subg = graphviz.Digraph('SubG', filename=f"{k}.gv", format="svg")
+        sub_g = graphviz.Digraph('Sub_Graph', filename=f"{k}.gv", format="svg")
         for x,node in v.items():
             if node[0] != 0:  # Contains errors
                 node_color = 'red'
                 has_error=True
             else:
                 node_color = None
-            subg.node(name=f"{x[0]} {x[1]}", label=f"{x[0]} {x[1]}", fillcolor=node_color, style="filled")
-
+            sub_g.node(name=f"{x[0]} {x[1]}", label=f"{x[0]} {x[1]}", fillcolor=node_color, style="filled")
+        
+        service_list = []
         # Add edges between nodes in the subgraph
         for x,node in v.items():
             for n,val in node[4].items():
-                subg.edge(f"{n[0]} {n[1]}", f"{x[0]} {x[1]}", weight=str(val), label=str(val))
+                sub_g.edge(f"{n[0]} {n[1]}", f"{x[0]} {x[1]}", weight=str(val), label=str(val))
+                if n[0] not in service_list:
+                    service_list.append(n[0])
+        related_services[k]=service_list
         
-        subg.render(outfile=f"{outputdir}/subgraphs/{k}.svg")
+        sub_g.render(outfile=f"{outputdir}/subgraphs/{k}.svg")
         if has_error:
             node_color = 'red'
         g.node(name=f"{k}",label=f"{k}",href = f"{subgraph_dir}/{k}.svg",color = node_color)
         
+    for k,value in related_services.items():
+        for ele in value:
+            g.edge(f"{ele}", f"{k}", weight=str(val), label=str(val))
        
     # Save in different formats
     g.render(outfile=f"{outputdir}/main_gh.svg")
