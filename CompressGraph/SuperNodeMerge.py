@@ -3,60 +3,62 @@ from graphers import plotall
 import graphviz
 from graph import *
 import logging
-import webbrowser
 import os
+import webbrowser
 
-def compute_metrics(traces,outputdir):
+def compute_metrics(traces, outputdir):
     # creating an empty dictionary to house the metrics
     d = {}
-    
-    #iterating through all the graphs
+
+    # iterating through all the graphs
     for trace in traces:
-        
+
         # nodes.extend(nodelist.nodeHT)
         # calling the helper function on rootnode of the graph
-        rootNode: GraphNode = trace.rootNode
+        rootNode = trace.rootNode
         # The helper function will populate the dictionary with the metric values
-        helper(rootNode,d,trace)
+        helper(rootNode, d, trace)
 
     # sorting the dictionary based on the first element in the list, this ensures all the entries are sorted based on the total errors received
-    sorted_d = dict(sorted(d.items(), key = lambda x:x[1][0],reverse=True))
-    
+    sorted_d = dict(sorted(d.items(), key=lambda x: x[1][0], reverse=True))
+
     # calling plot_all function from the grapher module in the project
     # This module draws bar plots for all the
     logging.info("Generating bar plots")
-    plotall.plot_all(sorted_d,0.8,outputdir)
-    
+    plotall.plot_all(sorted_d, 0.8, outputdir)
+
     logging.info("Generating dot graph")
     # generating a html file in outputdir.
-    generatehtml(sorted_d,outputdir)
+    generatehtml(sorted_d, outputdir)
 
 
-def getChildrenErrorDict(node:GraphNode,trace:Graph,di):
+def getChildrenErrorDict(node, trace, di):
     # iterate over children of node
     for child in node.children.keys():
         serviceName = trace.processName[child.pid]
         # initialize key tuple
-        key = (serviceName,child.opName)
+        key = (serviceName, child.opName)
 
         if child.errorFlag == True:
             # if child is not present in 'di' dictionary already,
             # make an entry with value = 1
             if di.get(key) is None:
                 di[key] = 1
-            # if key is already present, 
+            # if key is already present,
             # increase by 1.
             else:
                 di[key] += 1
         else:
             di[key] = 0
     return di
-    
-def helper(node:GraphNode,d,trace:Graph):
+
+
+def helper(node, d, trace):
     children = node.children.keys()
     serviceName = trace.processName[node.pid]
-    key = (serviceName,node.opName)
+    key = (serviceName, node.opName)
 
+  
     # if key i.e., service-operation pair are not present
     # insert a default value.
     if d.get(key) is None:
@@ -98,75 +100,51 @@ def helper(node:GraphNode,d,trace:Graph):
     for node in children:
         helper(node,d,trace)
 
-
 def generatehtml(data, outputdir):
-    # Create directory for subgraphs
+
     subgraph_dir = f"{outputdir}/subgraphs"
     os.makedirs(subgraph_dir, exist_ok=True)
 
     # Initialize Directed graph
     g = graphviz.Digraph('G', filename='tmp_gh.gv', format="svg")
 
-    # Create super nodes and subgraphs
-    super_nodes = {}
-    subgraphs = {}
-    for trace in data['data']:
-        spans = trace['spans']
-        processes = trace['processes']
+    service_names = []
+    for k, v in data.items():
+        service_names.append(k[0])
 
-        for span in spans:
-            service_name = processes[span['processID']]['serviceName']
-            operation_name = span['operationName']
-            super_node_name = f"{service_name}_super"
-
-            if super_node_name not in super_nodes:
-                # Create a subgraph for the super node
-                subgraph = graphviz.Digraph(name=f"cluster_{super_node_name}")
-                subgraph.node_attr.update(style='filled', color='lightgrey')
-                super_nodes[super_node_name] = super_node_name
-                subgraphs[super_node_name] = subgraph
-                # Add the super node to the main graph
-                g.subgraph(subgraph)
-
-            # Add the node to the corresponding subgraph
-            if 'tags' in span:
-                tags = span['tags']
-                for tag in tags:
-                    if tag['key'] == 'error' and tag['value'] == 'true':
-                        node_color = 'red'
-                        break
-                else:
-                    node_color = None
+    service_group = {}
+    for service in service_names:
+        nodes = {}
+        for k, v in data.items():
+            if service == k[0]:
+                nodes[k]=data[k]
+        service_group[service]=nodes
+        
+    # Add each service, operation pair as a node to the subgraph
+    for k,v in service_group.items():
+        subg = graphviz.Digraph('SubG', filename=f"{k}.gv", format="svg")
+        for x,node in v.items():
+            if node[0] != 0:  # Contains errors
+                node_color = 'red'
             else:
                 node_color = None
+            subg.node(name=f"{x[0]} {x[1]}", label=f"{x[0]} {x[1]}", fillcolor=node_color, style="filled")
 
-            subgraph_node_name = f"{service_name}_{operation_name}"
-            subgraph_node_label = f"{service_name} - {operation_name}"
-            subgraphs[super_node_name].node(name=subgraph_node_name, label=subgraph_node_label, fillcolor=node_color, style="filled", shape="box", href=f"subgraphs/{super_node_name}.html")
-
-
-    # Add edges between nodes
-    for trace in data['data']:
-        spans = trace['spans']
-        for span in spans:
-            references = span['references']
-            for ref in references:
-                ref_trace_id = ref['traceID']
-                ref_span_id = ref['spanID']
-                ref_super_node_name = f"{super_nodes.get(ref_trace_id + '_super')}"
-                if ref_super_node_name:
-                    cur_super_node = f"{super_nodes.get(trace['traceID'] + '_super')}"
-                    if cur_super_node:
-                        g.edge(f"{cur_super_node}_{span['operationName']}", f"{ref_super_node_name}_{spans[0]['operationName']}")
-
+        # Add edges between nodes in the subgraph
+        for x,node in v.items():
+            for n,val in node[4].items():
+                subg.edge(f"{n[0]} {n[1]}", f"{x[0]} {x[1]}", weight=str(val), label=str(val))
+        
+        subg.render(outfile=f"{outputdir}/subgraphs/{k}.svg")
+    
+    for super_node in service_names:
+        g.node(name=f"{super_node}",label=f"{super_node}",href = f"{subgraph_dir}/{super_node}.svg")
+        
     # Save in different formats
-    g.render(directory=outputdir, format="svg")
-    g.render(directory=outputdir, format="png")
-    g.render(directory=outputdir, format="pdf")
+    g.render(outfile=f"{outputdir}/tmp_gh.svg")
+    g.render(outfile=f"{outputdir}/tmp_gh.png")
+    g.render(outfile=f"{outputdir}/tmp_gh.pdf")
 
-    # Generate subgraph HTML files
-    for super_node_name, subgraph in subgraphs.items():
-        subgraph_html = f"{subgraph_dir}/{super_node_name}.html"
 
     html = """
     <!DOCTYPE html>
