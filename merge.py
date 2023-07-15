@@ -4,7 +4,7 @@ import graphviz
 from graph import *
 import logging
 
-def compute_metrics(traces, outputdir):
+def compute_metrics(traces, outputdir,threshold_duration):
     # creating an empty dictionary to house the metrics
     d = {}
 
@@ -15,7 +15,7 @@ def compute_metrics(traces, outputdir):
         # calling the helper function on rootnode of the graph
         rootNode = trace.rootNode
         # The helper function will populate the dictionary with the metric values
-        helper(rootNode, d, trace)
+        helper(rootNode, d, trace,threshold_duration)
 
     # sorting the dictionary based on the first element in the list, this ensures all the entries are sorted based on the total errors received
     sorted_d = dict(sorted(d.items(), key=lambda x: x[1][0], reverse=True))
@@ -51,11 +51,10 @@ def getChildrenErrorDict(node, trace, di):
     return di
 
 
-def helper(node, d, trace):
-    # use it for filtering
-    # duration = node.duration
-    # if duration < threshold_duration:
-    #     return
+def helper(node, d, trace,threshold_duration):
+    duration = node.duration
+    if duration < threshold_duration:
+        return
     children = node.children.keys()
     serviceName = trace.processName[node.pid]
     key = (serviceName, node.opName)
@@ -100,15 +99,11 @@ def helper(node, d, trace):
     d[key][4] = getChildrenErrorDict(node,trace,d[key][4])
 
     for node in children:
-        helper(node,d,trace)
+        helper(node,d,trace,threshold_duration)
 
 def generatehtml(data, outputdir):
     # Initialize Directed graph
-    # Initialize Directed graph
     g = graphviz.Digraph('G', filename='tmp_gh.gv', format="svg")
-
-    # Create a dictionary to store compressed subgraphs
-    compressed_subgraphs = {}
 
     # Add each service, operation pair as a node to the graph
     for k, v in data.items():
@@ -116,26 +111,16 @@ def generatehtml(data, outputdir):
             node_color = 'red'
         else:
             node_color = None
-
-        # Check if the node belongs to a compressed subgraph
-        compressed_subgraph = compressed_subgraphs.get(k[0], None)
-
-        if compressed_subgraph is None:
-            # If no compressed subgraph exists, create a new one
-            compressed_subgraph = graphviz.Digraph(name=k[0], format="svg")
-            compressed_subgraphs[k[0]] = compressed_subgraph
-
-        compressed_subgraph.node(name=f"{k[0]} {k[1]}", label=f"{k[0]} {k[1]}", fillcolor=node_color, style="filled")
+        g.node(name=f"{k[0]} {k[1]}", label=f"{k[0]} {k[1]}", fillcolor=node_color, style="filled")
 
     # Add edges between nodes
     for k, v in data.items():
+        
         for n, val in v[4].items():
+            
             g.edge(f"{n[0]} {n[1]}", f"{k[0]} {k[1]}", weight=str(val), label=str(val))
 
-    # Add compressed subgraphs to the main graph
-    for compressed_subgraph in compressed_subgraphs.values():
-        g.subgraph(compressed_subgraph)
-    
+    g=compress_graph(g)
     # Save in different formats
     g.render(outfile=f"{outputdir}/tmp_gh.svg")
     g.render(outfile=f"{outputdir}/tmp_gh.png")
