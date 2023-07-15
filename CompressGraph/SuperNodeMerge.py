@@ -106,7 +106,7 @@ def generatehtml(data, outputdir):
     os.makedirs(subgraph_dir, exist_ok=True)
 
     # Initialize Directed graph
-    g = graphviz.Digraph('G', filename='tmp_gh.gv', format="svg")
+    g = graphviz.Digraph('G', filename='main_gh.gv', format="svg")
 
     service_names = []
     for k, v in data.items():
@@ -119,13 +119,16 @@ def generatehtml(data, outputdir):
             if service == k[0]:
                 nodes[k]=data[k]
         service_group[service]=nodes
-        
+
+   
     # Add each service, operation pair as a node to the subgraph
     for k,v in service_group.items():
+        has_error = False   
         subg = graphviz.Digraph('SubG', filename=f"{k}.gv", format="svg")
         for x,node in v.items():
             if node[0] != 0:  # Contains errors
                 node_color = 'red'
+                has_error=True
             else:
                 node_color = None
             subg.node(name=f"{x[0]} {x[1]}", label=f"{x[0]} {x[1]}", fillcolor=node_color, style="filled")
@@ -136,14 +139,15 @@ def generatehtml(data, outputdir):
                 subg.edge(f"{n[0]} {n[1]}", f"{x[0]} {x[1]}", weight=str(val), label=str(val))
         
         subg.render(outfile=f"{outputdir}/subgraphs/{k}.svg")
-    
-    for super_node in service_names:
-        g.node(name=f"{super_node}",label=f"{super_node}",href = f"{subgraph_dir}/{super_node}.svg")
+        if has_error:
+            node_color = 'red'
+        g.node(name=f"{k}",label=f"{k}",href = f"{subgraph_dir}/{k}.svg",color = node_color)
         
+       
     # Save in different formats
-    g.render(outfile=f"{outputdir}/tmp_gh.svg")
-    g.render(outfile=f"{outputdir}/tmp_gh.png")
-    g.render(outfile=f"{outputdir}/tmp_gh.pdf")
+    g.render(outfile=f"{outputdir}/main_gh.svg")
+    g.render(outfile=f"{outputdir}/main_gh.png")
+    g.render(outfile=f"{outputdir}/main_gh.pdf")
 
 
     html = """
@@ -233,7 +237,7 @@ def generatehtml(data, outputdir):
         <script>
             var dotSrc = `
     """ + \
-        open("./out/tmp_gh.gv").read() + \
+        open("./out/main_gh.gv").read() + \
         """`;
         const DATA = """ + \
             str({f"'{k[0]} {k[1]}'":[v[0],v[1],v[2],v[3],{f"'{a[0]} {a[1]}'":b for a,b in v[4].items()}] for k,v in data.items()}) + \
